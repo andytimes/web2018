@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<!-- Meta -->
+		<meta charset="utf-8">
+		<title>Audio Visualizer in 2018</title>
+		<!-- Theme style -->
+		<link rel="stylesheet" href="css/style.css">
+		<!-- Style background image -->
+		<style>body{background-image:url('imgs/bg_aw_fade.jpg');}</style>
+		<!-- Scripts -->
+		<script language="javascript" type="text/javascript" src="js/p5.min.js"></script>
+		<script language="javascript" type="text/javascript" src="js/p5.dom.min.js"></script>
+		<script language="javascript" type="text/javascript" src="js/p5.sound.min.js"></script>
+		<script language="javascript" type="text/javascript" src="js/sketch.js"></script>
+		<!-- <script language="javascript" type="text/javascript" src="js/base64_file.js"></script> -->
+		<script>let page_is = 'TOUR';</script>
+		<script>let page_ajax = true;</script>
+		<script>/*! Grained.js
+			* Author : Sarath Saleem  - https://github.com/sarathsaleem
+			* MIT license: http://opensource.org/licenses/MIT
+			* GitHub : https://github.com/sarathsaleem/grained
+			* v0.0.1
+			*/
+			!function(a,b){"use strict";function c(a,c){function d(a,b,c,d){var e="";e=b.length?b+"{"+c+"}":c,"insertRule"in a?a.insertRule(e,d):"addRule"in a&&a.addRule(b,c,d)}var e=null,f=null,g=null;if("string"==typeof a&&(e=b.getElementById(a.split("#")[1])),!e)return void console.error("Grained: cannot find the element with id "+a);f=e.id,"absolute"!==e.style.position&&(e.style.position="relative"),e.style.overflow="hidden";var h=["","-moz-","-o-animation-","-webkit-","-ms-"],i={animate:!0,patternWidth:100,patternHeight:100,grainOpacity:.1,grainDensity:1,grainWidth:1,grainHeight:1,grainChaos:.5,grainSpeed:20};Object.keys(c).forEach(function(a){i[a]=c[a]});for(var j=function(){var a=b.createElement("canvas"),c=a.getContext("2d");a.width=i.patternWidth,a.height=i.patternHeight;for(var d=0;d<i.patternWidth;d+=i.grainDensity)for(var e=0;e<i.patternHeight;e+=i.grainDensity){var f=256*Math.random()|0;c.fillStyle="rgba("+[f,f,f,i.grainOpacity].join()+")",c.fillRect(d,e,i.grainWidth,i.grainHeight)}return a.toDataURL("image/png")},k=j(),l="",m=["0%:-10%,10%","10%:-25%,0%","20%:-30%,10%","30%:-30%,30%","40%::-20%,20%","50%:-15%,10%","60%:-20%,20%","70%:-5%,20%","80%:-25%,5%","90%:-30%,25%","100%:-10%,10%"],n=h.length;n--;){l+="@"+h[n]+"keyframes grained{";for(var o=0;o<m.length;o++){var p=m[o].split(":");l+=p[0]+"{",l+=h[n]+"transform:translate("+p[1]+");",l+="}"}l+="}"}var q=b.getElementById("grained-animation");q&&q.parentElement.removeChild(q);var r=b.createElement("style");r.type="text/css",r.id="grained-animation",r.innerHTML=l,b.body.appendChild(r);var s=b.getElementById("grained-animation-"+f);s&&s.parentElement.removeChild(s),r=b.createElement("style"),r.type="text/css",r.id="grained-animation-"+f,b.body.appendChild(r);var t="background-image: url("+k+");";if(t+='position: absolute;content: "";height: 300%;width: 300%;left: -100%;top: -100%;',n=h.length,i.animate)for(;n--;)t+=h[n]+"animation-name:grained;",t+=h[n]+"animation-iteration-count: infinite;",t+=h[n]+"animation-duration: "+i.grainChaos+"s;",t+=h[n]+"animation-timing-function: steps("+i.grainSpeed+", end);";g="#"+f+"::before",d(r.sheet,g,t)}a.grained=c}(window,document);
+		</script>
+		<script>let ajax = false;
+			let page_title_base = 'Audio Visualizer';
+			let saved_pages = [];
+			let video_is_playing = false;
+			let internal_links = [];
+			let i;
+
+			window.onload = function () {
+			    // Save the first page for fest page load when swaping
+			    let main = document.querySelector('main');
+			    if(page_ajax && main) saved_pages[window.location.href] = main.innerHTML;
+
+			    // Set noise
+			    if(document.getElementById('noise_html')) {
+			        grained('#noise_html' , {
+			            "animate": true,
+			            "patternWidth": 500,
+			            "patternHeight": 60,
+			            "grainOpacity": 0.1,
+			            "grainDensity": 1,
+			            "grainWidth": 1,
+			            "grainHeight": 1
+			        });
+			    }
+
+			    on_load();
+
+			}
+
+			window.addEventListener('popstate', function(event) {
+			    // In case we navigated back or forward in time
+			    update_nav(window.location.href);
+			    switch_page(window.location.href);
+
+			});
+
+
+			/*
+			Switch page
+			- Will fetch content by url or by saved data
+			*/
+			function switch_page(link) {
+			    // Vars used
+			    let url = link + '?get_only_raw_page';
+			    let request = new XMLHttpRequest();
+			    let request_error = 'Could not fetch page from: ' + url;
+			    let request_data = null;
+			    let main = document.querySelector('main');
+
+			    // We need main to put content
+			    if(!main) return false;
+
+			    // Start swaping
+			    ajax = true;
+
+			    // Hide content - with animation
+			    main.classList.add('change_page');
+
+			    // Check if we have saved page
+			    if(typeof saved_pages[link] !== 'undefined' ) {
+			        swap_pages(saved_pages[link], true);
+			        return false;
+			    }
+
+			    // Fetch content
+			    request.open('GET', url, true);
+			    request.onerror = function() {
+			        console.error(request_error);
+			    };
+			    request.onload = function() {
+			        if (request.status >= 200 && request.status < 400) request_data = request.responseText;
+			        else console.error(request_error);
+			        // Success
+			        if(request_data) {
+			            // Save data
+			            saved_pages[link] = request_data;
+			            // Do the swap
+			            swap_pages(request_data, false);
+
+			        } else {
+			            main.classList.remove('change_page');
+			            ajax = false;
+			        }
+			    };
+			    request.send();
+
+			}
+
+			/*
+			Swap content
+			- Remove old main content with new content
+			*/
+			function swap_pages(content, saved) {
+			    // Main
+			    let main = document.querySelector('main');
+
+			    // Put new content in placeholder
+			    let placeholder = document.createElement('main');
+			    placeholder.classList.add('hide_fast', 'main_placeholder');
+			    main.parentNode.insertBefore(placeholder, main.nextSibling);
+			    placeholder.innerHTML = content;
+			    let section = placeholder.querySelector('section[data-title]');
+			    if(section) {
+			        let title = section.getAttribute('data-title');
+			        if(title !== undefined) document.title = page_title_base + ' - ' + title;
+			    }
+
+			    // Swap
+			    setTimeout(function() {
+			        main.parentNode.removeChild(main);
+			        placeholder.classList.remove('hide_fast', 'main_placeholder');
+			        placeholder.classList.add('add_page');
+			        window.scrollTo(0, 0);
+			        setTimeout(function() {
+			            ajax = false;
+			            placeholder.classList.remove('add_page');
+			            on_load();
+			        }, 500);
+			    }, saved ? 0 : 250); // If its not saved - lets give it a few seconds to load images
+
+			}
+
+			/*
+			Update url
+			- Set new title and url for this swap
+			*/
+			function update_url(url, title) {
+			    // Update title and set it
+			    title = page_title_base + ' - ' + title;
+			    document.title = title;
+			    // Push history if we can, if not do a reload
+			    if(typeof (history.pushState) !== "undefined") history.pushState({ Title: title, Url: url }, title, url);
+			    else window.location.href = url;
+
+			}
+
+			/*
+			Update nav
+			- Set new nav active class and remove old
+			*/
+			function update_nav(url) {
+			    // Remove old active class
+			    let old_active = document.querySelectorAll('.active-page'), y = -1, old_active_length = old_active.length;
+			    while(y++ < old_active_length - 1) old_active[y].classList.remove('active-page');
+
+			    // Set new avtive class
+			    let new_active = document.querySelector('nav a[href="' + url + '"]');
+			    if(new_active) new_active.classList.add('active-page');
+
+			}
+
+			/*
+			Video player yes no
+			-
+			*/
+			function video_player(x) {
+			    // Get current state
+			    let state = x.parentNode.classList.toggle('open');
+
+			    // Close all current videos
+			    video_player_close_all();
+
+			    // Lets play ?
+			    if(state) {
+			        x.parentNode.classList.add('open');
+			        let video = x.parentNode.parentNode.querySelector('.video');
+			        let player = video.querySelector('span');
+			        if(player && player.nodeName === 'SPAN') {
+			            // Create iframe
+			            let iframe  = document.createElement('iframe');
+			            iframe.src = player.getAttribute('data-src');
+			            iframe.setAttribute('allowfullscreen', '');
+			            video.removeChild(player);
+			            video.appendChild(iframe);
+			        }
+
+			    }
+			}
+
+			function wc_messages() {
+			    var messages = document.querySelectorAll('.woocommerce-message');
+			    setTimeout(function(){
+			        for (var i = 0; i < messages.length; i++) {
+			            messages[i].classList.add('view');
+			            messages[i].classList.add('woocommerce-message--' + i);
+			        }
+			    }, 500)
+			    setTimeout(function(){
+			        for (var i = 0; i < messages.length; i++) {
+			            messages[i].classList.remove('view');
+			        }
+			    }, 5000)
+			}
+
+			/*
+			Video player close all
+			- This function will close all videos and switch from iframe to span
+			*/
+			function video_player_close_all() {
+			    // Set every iframe back to span's
+			    let all_videos = document.querySelectorAll('.video > iframe'), all_videos_length = all_videos.length, i = -1;
+			    while(i++ < all_videos_length - 1) {
+
+			        let span = document.createElement('span');
+			        span.setAttribute('data-src', all_videos[i].src);
+			        all_videos[i].parentNode.appendChild(span);
+			        all_videos[i].parentNode.removeChild(all_videos[i]);
+
+			    }
+
+			    // removes open classes
+			    let all_open = document.querySelectorAll('.quest.open'); all_open_length = all_open.length, i = -1;
+			    while(i++ < all_open_length - 1) all_open[i].classList.remove('open');
+
+			}
+
+			/*
+			Check state on load
+			*/
+			function on_load() {
+			 var user = JSON.parse(sessionStorage.getItem('walker_user'));
+			 if (user) {
+			     var logout = document.getElementById('walker_login');
+			     if (logout) {
+			         logout.innerHTML = 'Logout';
+			         logout.addEventListener('click', (event) => {
+			             event.preventDefault();
+			             sessionStorage.clear();
+			             window.location = '/login';
+			         });
+			     }
+			 }
+			 // Ajax links
+			 if (page_ajax) {
+			     let internal_links = document.querySelectorAll('nav a:not([target="_blank"]), .internal-link')
+			     let i = -1
+			     let internal_links_length = internal_links.length;
+			     while (i++ < internal_links_length - 1) {
+			         internal_links[i].addEventListener('click', function (e) {
+
+			             // Prevent default
+			             e.preventDefault();
+
+			             // If we are swaping now
+			             if (ajax) return false;
+
+			             // Update url and swap page
+			             update_url(this.href, this.title); // Run this first since if push state is not supported and the page reload anyway
+			             update_nav(this.href);
+			             switch_page(this.href);
+
+			         });
+			     }
+			 }
+
+			 // Check for page
+			 let is_latest_page = document.querySelector('.page-latest');
+			 if (is_latest_page) page_latest();
+
+			 let is_release_page = document.querySelector('.page-release');
+			 if (is_release_page) page_release();
+
+			 loadingbar();
+			 wc_messages();
+			 custom_variations_select();
+
+			 // Lets turn every shitty embed iframe to a iframe..
+			 let data_src = document.querySelectorAll('main span[data-src]:not(.dontload)'),
+			     data_src_length = data_src.length,
+			     i = -1;
+			 while (i++ < data_src_length - 1) {
+			     // Create and add iframe
+			     console.log(data_src[i]);
+			     let iframe = document.createElement('iframe');
+			     iframe.src = data_src[i].getAttribute('data-src');
+			     iframe.setAttribute('allowfullscreen', '');
+			     data_src[i].parentNode.appendChild(iframe);
+			     data_src[i].parentNode.removeChild(data_src[i]);
+			 }
+
+			 let slideshow = document.querySelectorAll('.slideshow__controls-btn');
+			 for (let i = 0; i < slideshow.length; i++) {
+			     slideshow[i].addEventListener('click', function () {
+			         this.parentNode.parentNode.setAttribute('data-active', this.getAttribute('data-slide'));
+			     });
+			 }
+
+			 /*
+			 var w41k3r = document.querySelectorAll('.w41k3r');
+			 var word = '53cr37 pl47f0rm';
+			 for(var w = 0; w < w41k3r.length; w++) {
+			     w41k3r[w].addEventListener('mouseenter', function() {
+			         if(!this.classList.contains('enter')) {
+			             var out = this;
+			             for(var wi = this.innerHTML.length; wi < word.length; wi++) {
+			                 setTimeout(function() {
+			                     out.innerHTML = randLetter(word);
+			                     out.setAttribute('data-text', out.innerHTML);
+			                 }, 100 * wi)
+			             }
+			             this.classList.add('enter');
+			         } else {
+			             this.classList.add('enter');
+			         }
+			     });
+			 }
+			 console.log(w41k3r);
+			 */
+			 var login_form = document.getElementById('login-user');
+			 if (login_form) {
+			     login_form.addEventListener('submit', function (event) {
+			         // Prevent default
+			         event.preventDefault();
+			         // Set data
+			         var form = this;
+			         var username = form.querySelector('input[name="username"]').value || null;
+			         var pw = form.querySelector('input[name="pw"]').value || null;
+			         var btn = form.querySelector('.page-login__btn');
+			         var error = document.querySelector('.page-login__error');
+			         // Set loading
+			         form.classList.add('js-loading');
+			         if (error) {
+			             error.innerHTML = '';
+			             error.setAttribute('data-text', error.innerHTML);
+			         }
+			         if (btn) {
+			             btn.innerHTML = 'Connecting..'
+			             btn.setAttribute('data-text', btn.innerHTML);
+			         }
+			         // Test login
+			         var formData = new FormData();
+			         formData.append("email", username);
+			         formData.append("pw", pw);
+			         var xhr = new XMLHttpRequest();
+			         xhr.onreadystatechange = function () {
+			             if (xhr.readyState == 4 && xhr.status == 200) {
+			                 // Remove loading
+			                 form.classList.remove('js-loading');
+			                 if (JSON.parse(xhr.response) === 1) {
+			                     error.innerHTML = 'Access granted';
+			                     error.setAttribute('data-text', error.innerHTML);
+			                     window.location = '/welcome';
+			                 } else {
+			                     if (error) {
+			                         error.innerHTML = 'Access denied';
+			                         error.setAttribute('data-text', error.innerHTML);
+			                     }
+			                     if (btn) {
+			                         btn.innerHTML = 'Connect'
+			                         btn.setAttribute('data-text', btn.innerHTML);
+			                     }
+			                 }
+			             }
+			         }
+			         xhr.open("POST", "/wp-json/alan-walker/login-user/", true);
+			         xhr.send(formData);
+			     })
+			 }
+
+			 var welcome_page = document.querySelector('.page-welcome');
+			 if (welcome_page) {
+
+
+			 }
+			}
+
+			/*
+			Release page
+			*/
+			function page_release() {
+
+			 // Lets turn every shitty embed iframe to a iframe..
+			 let data_src = document.querySelectorAll('main span[data-src]'),
+			     data_src_length = data_src.length,
+			     i = -1;
+			 while (i++ < data_src_length - 1) {
+			     // Create and add iframe
+			     let iframe = document.createElement('iframe');
+			     iframe.src = data_src[i].getAttribute('data-src');
+			     iframe.setAttribute('allowfullscreen', '');
+			     data_src[i].parentNode.appendChild(iframe);
+			     data_src[i].parentNode.removeChild(data_src[i]);
+			 }
+
+			 // Now we only need to do it with appended script too.. fun night we have!
+			 let data_sricpt = document.querySelectorAll('main span[data-script]'),
+			     data_sricpt_length = data_sricpt.length,
+			     y = -1;
+			 while (y++ < data_sricpt_length - 1) {
+			     // Create script
+			     let s = document.createElement('script');
+			     s.type = 'text/javascript';
+			     s.src = data_sricpt[y].getAttribute('data-script');
+			     data_sricpt[y].parentNode.removeChild(data_sricpt[y]);
+			     // Add it to head
+			     let h = document.querySelector('head');
+			     if (h) h.appendChild(s);
+			 }
+
+			}
+
+
+
+			/*
+			Latest page as animations
+			*/
+			function page_latest() {
+
+			    // Return if its not found or it should not animate
+			    let page =  document.querySelector('.page-latest');
+			    if(!page || (page && !page.classList.contains('type_in'))) return false;
+
+			    // Vars
+			    let hello = ['H', 'e', 'l', 'l', 'o', '.']; /* Type effect on load */
+
+			    /* Records */
+			    let record_list = [];
+
+			    let records = page.querySelectorAll('article');
+			    for(let i = 0; i < records.length; i++) {
+			        let x = {
+			            title: null,
+			            title_t: null,
+			            cover: null,
+			            video: null,
+			            links: [],
+			            links_t: null,
+			            question: null,
+			            question_t: null,
+			            question_raw: null,
+			        }
+			        x.title = records[i].querySelector('h2');
+			        x.title_t = x.title.innerHTML;
+			        records[i].querySelector('h2').innerHTML = '';
+			        x.cover = records[i].querySelector('img');
+			        x.cover.classList.add('hide');
+			        x.video = records[i].querySelector('.video');
+			        x.video.classList.add('hide');
+			        x.links_t = records[i].querySelector('ul');
+			        let a_links = records[i].querySelectorAll('ul li a');
+			        for(let ii = 0; ii < a_links.length; ii++) {
+			            x.links.push(a_links[ii].innerHTML);
+			            a_links[ii].innerHTML = '';
+			            a_links[ii].classList.remove('not_empty');
+			        }
+			        x.question_raw = records[i].querySelector('.quest').innerHTML;
+			        x.question_t = records[i].querySelector('.quest');
+			        x.question = records[i].querySelector('.quest').textContent;
+			        records[i].querySelector('.quest').innerHTML = '';
+			        record_list.push(x);
+			    }
+
+			    let ask_for_video = 'Watch the video? (<span  class="link open-yes" onclick="video_player(this)">Yes</button>/<button class="link open-no" onclick="video_player(this)">no</button>)';
+			    let ask_for_video_array = ask_for_video.replace(/<[^>]*>/g, "");
+			    ask_for_video_array = ask_for_video_array.split('');
+			    let asked = false;
+
+			    page.classList.remove('hide_fast');
+
+			    // title
+			    let hello_placeholder = page.querySelector('article:first-of-type h2');
+			    hello_placeholder.classList.add('typer');
+			    let delay = 100;
+			    let this_delay = 500;
+
+			    for(let _ = 0; _ < hello.length; _++) {
+			        set_timout(this_delay, hello_placeholder, hello[_], 0);
+			        this_delay += delay;
+			    }
+
+			    this_delay += 750;
+
+			    for(let _ = 0; _ < hello.length; _++) {
+			        set_timout(this_delay, hello_placeholder, '', 1);
+			        this_delay += delay;
+			    }
+
+			    this_delay += 750;
+
+			    if(window.innerWidth <= 850) {
+			        delay = 50;
+			    }
+
+			    // Releases
+			    for(let i = 0; i < record_list.length; i++) {
+
+			        delay = 100;
+
+
+			        set_timout_class(this_delay, record_list[i].title, 'typer', 0);
+
+			        for(let ii = 0; ii < record_list[i].title_t.length; ii++) {
+			            set_timout(this_delay, record_list[i].title, record_list[i].title_t[ii], 0);
+			            this_delay += delay;
+			        }
+
+			        set_timout_class(this_delay, record_list[i].cover, 'hide', 1);
+
+			        delay = 50;
+
+			        this_delay += 750;
+
+			        set_timout_class(this_delay, record_list[i].title, 'typer', 1);
+			        set_timout_class(this_delay, record_list[i].links_t, 'typer', 0);
+
+			        for(let ii = 0; ii < record_list[i].links.length; ii++) {
+			            for(let iii = 0; iii < record_list[i].links[ii].length; iii++) {
+			                set_timout(this_delay, record_list[i].links_t.querySelector('li:nth-of-type(' + (ii + 1) + ') a'), record_list[i].links[ii][iii], 0);
+			                this_delay += delay;
+			            }
+			            set_timout_class(this_delay, record_list[i].links_t.querySelector('li:nth-of-type(' + (ii + 1) + ') a'), 'not_empty', 0);
+			        }
+
+
+			        this_delay += 250;
+
+			        set_timout_class(this_delay, record_list[i].links_t, 'typer', 1);
+
+			        this_delay += 250;
+			        set_timout_class(this_delay, record_list[i].question_t, 'typer', 0);
+
+			        for(let ii = 0; ii < record_list[i].question.length; ii++) {
+			            set_timout(this_delay, record_list[i].question_t, record_list[i].question[ii], 0);
+			            this_delay += delay;
+			        }
+			        set_timout_content(this_delay, record_list[i].question_t, record_list[i].question_raw);
+			        set_timout_class(this_delay, record_list[i].question_t, 'typer', 1);
+
+			    }
+
+			}
+
+
+			function custom_select_box() {
+			    let all = document.querySelectorAll('select');
+			    for(let i = 0; i < all.length; i++) {
+			        let options = all[i].querySelectorAll('option');
+			        for(let y = 0; y < options.length; y++) {
+			            options[y].setAttribute('data-title', options[y].innerHTML);
+			            if(!options[y].selected) {
+			                options[y].innerHTML = '';
+			            }
+			        }
+			        let copy = all[i].cloneNode(true);
+			        copy.classList.add('show');
+			        all[i].parentNode.replaceChild(copy, all[i]);
+			        copy.addEventListener('click', function(e) {
+			            let options = this.querySelectorAll('option');
+			            for(let y = 0; y < options.length; y++) {
+			                options[y].innerHTML = options[y].getAttribute('data-title');
+			            }
+			        });
+			    }
+			}
+
+
+			function set_timout(delay, out, letter, remove) {
+			    if(remove) {
+			        setTimeout(function(){
+			            out.innerHTML = out.innerHTML.slice(0, -1);
+			        }, delay);
+			    } else {
+			        setTimeout(function(){
+			            out.innerHTML += letter;
+			        }, delay);
+			    }
+			}
+
+			function set_timout_class(delay, out, clas, remove) {
+			    if(remove) {
+			        setTimeout(function(){
+			            out.classList.remove(clas);
+			        }, delay);
+			    } else {
+			        setTimeout(function(){
+			            out.classList.add(clas);
+			        }, delay);
+			    }
+			}
+
+			function set_timout_content(delay, out, text) {
+			    setTimeout(function(){
+			        out.innerHTML = text;
+			    }, delay);
+			}
+
+			function custom_variations_select() {
+			    var all = document.querySelectorAll('.variations select');
+			    for (var i = 0; i < all.length; i++) {
+			        var select = document.createElement('div');
+			        select.classList.add('custom_variations_select');
+			        var inputs = all[i].querySelectorAll('option');
+			        all[i].style.display = 'none';
+			        for(var y = 0; y < inputs.length; y++) {
+			            var btn = document.createElement('span');
+			            btn.setAttribute('data-value', inputs[y].value);
+			            btn.innerHTML = inputs[y].innerHTML;
+			            btn.setAttribute('onclick', 'custom_select_box_click(this)');
+			            select.appendChild(btn);
+			            if(inputs[y].selected) {
+			                all[i].setAttribute('data-selected-nr', y);
+			            }
+			        }
+			        all[i].parentNode.appendChild(select, all[i]);
+			    }
+			}
+
+			function custom_select_box_click(el) {
+			    el.classList.add('click');
+			    setTimeout(function(){
+			        el.classList.remove('click');
+			    }, 500);
+			    var select = el.parentNode.parentNode.querySelector('select');
+			    if(select) {
+			        select.value = el.getAttribute('data-value');
+			        select.setAttribute('data-selected-nr', [].indexOf.call(el.parentNode.children, el));
+			        jQuery(select).trigger('change');
+			    }
+			}
+
+			// Loading bar
+			function perecent_out(o, t, i) {
+			    window.setTimeout(function () {
+			        o.innerHTML = i;
+			    }, (1600 / t) * i);
+			}
+
+			var delay_time_base = 60;
+
+			function hover_effect(x, old_txt) {
+			    if (!x.classList.contains('effect')) {
+			        x.classList.add('effect');
+			        var random_txt = [];
+			        for (var i = 0; i < 24; i++) {
+			            var t = '';
+			            for (var ii = 0; ii < old_txt.length; ii++) {
+			                t += old_txt.charAt(Math.floor(Math.random() * old_txt.length));
+			            }
+			            random_txt.push(t);
+			        }
+			        random_txt.push(old_txt);
+			        for (var i = 0; i < random_txt.length; i++) {
+			            set_delayed_txt(x, i, random_txt[i]);
+			        }
+			        window.setTimeout(function () {
+			            x.classList.remove('effect');
+			        }, delay_time_base * random_txt.length);
+			    }
+			}
+
+			function hover_effect_w_type(x, old_txt) {
+			    if (!x.classList.contains('effect')) {
+			        x.classList.add('effect');
+			        var random_txt = [];
+			        for (var i = 0; i < old_txt.length; i++) {
+			            var t = '';
+			            for (var ii = 0; ii < i; ii++) {
+			                t += old_txt.charAt(Math.floor(Math.random() * old_txt.length));
+			            }
+			            random_txt.push(t);
+			        }
+			        random_txt.push(old_txt);
+			        for (var i = 0; i < random_txt.length; i++) {
+			            set_delayed_txt(x, i, random_txt[i]);
+			        }
+			        window.setTimeout(function () {
+			            x.classList.remove('effect');
+			        }, delay_time_base * random_txt.length);
+			    }
+			}
+
+			function set_delayed_txt(node, time, txt) {
+			    window.setTimeout(function () {
+			        if (node.tagName == 'INPUT') {
+			            node.setAttribute('placeholder', txt);
+			        } else {
+			            node.innerHTML = txt;
+			        }
+			    }, delay_time_base * time);
+			}
+
+			function loadingbar() {
+			    var loading = document.querySelector('.loading-bar');
+			    if (loading) {
+			        var time = 100;
+			        var loading_text = document.querySelector('.loading-bar__title');
+			        if (loading_text) {
+			            console.log(loading_text);
+			            hover_effect_w_type(loading_text, loading_text.innerHTML);
+			        }
+
+			        var percentOut = document.getElementById('procent-out');
+			        if (percentOut) {
+			            for (i = 0; i <= time; i += 0.11) {
+			                perecent_out(percentOut, time, i.toFixed(2));
+			            }
+			            perecent_out(percentOut, time, time);
+			        }
+
+			        window.setTimeout(function () {
+			            document.getElementById('time-out').style.width = time + '%';
+			        }, 100);
+			        window.setTimeout(function() {
+			            loading.classList.add('blink');
+			            window.setTimeout(function() {
+			                loading.parentNode.removeChild(loading);
+			            }, 1500);
+			        }, 1600);
+			    }
+			}
+		</script>
+	</head>
+	<body>
+		<header>
+			<a href="http://2018.andytimes.xyz" title="Alan Walker" class="logo">
+			<img src="imgs/logo-white.png" alt="Alan Walker"/>
+			</a>
+			<div id="vz"></div>
+			<nav id="top">
+				<a href="" target="" title="Press" class="active-page">戳一戳</a>
+				<a href="https://andytimes.xyz/2018/06/28/try-web-animation/" target="_blank" title="Tech" class="">技术支持</a>
+			</nav>
+		</header>
+		<div id="noise_html">
+		</div>
+		<main>
+			<section class="page-splash space-medium" data-title="2018">
+				<section class="loading-bar">
+					<span class="prog">
+					<span class="pros"><span id="procent-out"></span>%</span>
+					<span class="time-line">
+					<span id="time-out" class="time" style="background-color: #ffffdb"></span>
+					</span>
+					</span>
+					<h1 class="loading-bar__title"></h1>
+				</section>
+				<!--  Header -->
+				<h1 class="text">频 闪</h1>
+				<h4 class="text">> 2018年的网页设计期末作业</h4>
+				<!-- Header -->
+			</section>
+			<section class="page-tour" data-title="Tour">
+				<!-- List -->
+				<ul class="dates-list">
+					<li id="aw-100046782">
+						<ul class="">
+							<li class="date">00.01</li>
+							<li class="place">
+								<span>I need your Love</span>
+								<span>Andreas B.</span>
+							</li>
+							<li class="link_tickets available">
+								<a style="cursor:pointer" onclick="play_music(2)">播放</a>
+							</li>
+						</ul>
+					</li>
+					<li id="aw-100046783">
+						<ul class="">
+							<li class="date">00.02</li>
+							<li class="place">
+								<span>Shrine of Light (Full Version)</span>
+								<span>Andreas B.</span>
+							</li>
+							<li class="link_tickets available">
+								<a style="cursor:pointer" onclick="play_music(0)">播放</a>
+							</li>
+						</ul>
+					</li>
+					<li id="aw-100046786">
+						<ul class="">
+							<li class="date">00.03</li>
+							<li class="place">
+								<span>Different World</span>
+								<span>Alan Walker / K-391 / CORSAK / Sofia Carson</span>
+							</li>
+							<li class="link_tickets available">
+								<a href="https://music.163.com/#/song?id=1328047738" target="_blank">跳转</a>
+							</li>
+						</ul>
+					</li>
+					<li id="aw-100046788">
+						<ul class="">
+							<li class="date">00.04</li>
+							<li class="place">
+								<span>Sing Me to Sleep</span>
+								<span>Alan Walker / Iselin Solheim</span>
+							</li>
+							<li class="link_tickets available">
+								<a href="https://music.163.com/#/song?id=415792222" target="_blank">跳转</a>
+							</li>
+						</ul>
+					</li>
+					<li id="aw-100046793">
+						<ul class="">
+							<li class="date">00.05</li>
+							<li class="place">
+								<span>Stranger Things (Alan Walker Remix)</span>
+								<span>Kygo / OneRepublic / Alan Walker</span>
+							</li>
+							<li class="link_tickets available">
+								<a href="https://music.163.com/#/song?id=536243886" target="_blank">跳转</a>
+							</li>
+						</ul>
+					</li>
+					<li id="aw-100046795">
+						<ul class="">
+							<li class="date">00.06</li>
+							<li class="place">
+								<span>The Veldt (8 Minute Edit)</span>
+								<span>deadmau5 / Chris James</span>
+							</li>
+							<li class="link_tickets available">
+								<a href="https://music.163.com/#/song?id=17244975" target="_blank">跳转</a>
+							</li>
+						</ul>
+					</li>
+					<li id="aw-100046816">
+						<ul class="">
+							<li class="date">00.07</li>
+							<li class="place">
+								<span>Pets</span>
+								<span>deadmau5</span>
+							</li>
+							<li class="link_tickets available">
+								<a href="https://music.163.com/#/song?id=28273424" target="_blank">跳转</a>
+							</li>
+						</ul>
+					</li>
+					<li id="aw-100046843">
+						<ul class="">
+							<li class="date">00.08</li>
+							<li class="place">
+								<span>camilla</span>
+								<span>deadmau5</span>
+							</li>
+							<li class="link_tickets available">
+								<a href="https://music.163.com/#/song?id=1335940690" target="_blank">跳转</a>
+							</li>
+						</ul>
+					</li>
+					<li id="aw-100046869">
+						<ul class="">
+							<li class="date">00.09</li>
+							<li class="place">
+								<span>You’re Not Alone</span>
+								<span>Owl City / Britt Nicole</span>
+							</li>
+							<li class="link_tickets available">
+								<a style="cursor:pointer" onclick="play_music(1)">播放</a>
+							</li>
+						</ul>
+					</li>
+				</ul>
+				<!-- List -->
+			</section>
+		</main>
+	</body>
+</html>
